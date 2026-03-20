@@ -1,0 +1,167 @@
+// Telegram XLM Auto System - Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User management
+model User {
+  id           String   @id @default(cuid())
+  telegramId   String   @unique
+  status       String   @default("pending") // pending, active, blocked
+  walletLimit  Int      @default(5)
+  dailyLimit   Float    @default(1000.0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  wallets      Wallet[]
+  mnemonics    Mnemonic[]
+  transactions Transaction[]
+  schedules    Schedule[]
+  adminLogs    AdminLog[] @relation("AdminActions")
+  adminActions AdminLog[] @relation("AdminPerformed")
+
+  @@index([telegramId])
+  @@index([status])
+}
+
+// Wallet storage
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String
+  address   String
+  memo      String?
+  label     String?
+  status    String   @default("active") // active, disabled, deleted
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  schedules    Schedule[]
+
+  @@unique([userId, address])
+  @@index([userId])
+  @@index([address])
+}
+
+// Encrypted mnemonic storage
+model Mnemonic {
+  userId       String   @id
+  encryptedData String  // AES-256-GCM encrypted mnemonic
+  iv           String   // Initialization vector
+  authTag      String   // Authentication tag
+  salt         String   // Salt for key derivation
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Transaction tracking
+model Transaction {
+  id             String   @id @default(cuid())
+  userId         String
+  walletId       String
+  amount         Float
+  destination    String   // Binance address
+  status         String   @default("pending") // pending, processing, success, failed
+  hash           String?
+  idempotencyKey String   @unique
+  error          String?
+  retryCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet Wallet  @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Auto-withdraw schedules
+model Schedule {
+  id             String   @id @default(cuid())
+  userId         String
+  walletId       String
+  amount         Float
+  intervalMinutes Int
+  lastRun        DateTime?
+  nextRun        DateTime?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([active])
+  @@index([nextRun])
+}
+
+// Admin action logging
+model AdminLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  targetId  String?  // Target user/wallet/transaction
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  admin   User  @relation("AdminPerformed", fields: [adminId], references: [id])
+  target  User? @relation("AdminActions", fields: [targetId], references: [id])
+
+  @@index([adminId])
+  @@index([createdAt])
+}
+
+// Broadcast messages
+model Broadcast {
+  id          String   @id @default(cuid())
+  adminId     String
+  message     String
+  targetType  String   // all, active, custom
+  targetIds   String?  // JSON array for custom targets
+  totalCount  Int      @default(0)
+  successCount Int     @default(0)
+  failCount   Int      @default(0)
+  status      String   @default("pending") // pending, processing, completed, failed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+}
+
+// Rate limiting
+model RateLimit {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  count     Int      @default(1)
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([key])
+  @@index([resetAt])
+}
+
+// Daily transaction limits
+model DailyLimit {
+  id        String   @id @default(cuid())
+  userId    String
+  date      String   // YYYY-MM-DD format
+  amount    Float    @default(0.0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+}
