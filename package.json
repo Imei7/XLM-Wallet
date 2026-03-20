@@ -5,7 +5,8 @@
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "worker": "node worker/worker.js"
+    "worker": "node worker/worker.js",
+    "postinstall": "npx prisma generate"
   },
   "engines": {
     "node": ">=18"
@@ -16,6 +17,10 @@
     "ioredis": "^5.0.0",
     "pg": "^8.0.0",
     "stellar-sdk": "^11.0.0",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "@prisma/client": "^5.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.0.0"
   }
 }
