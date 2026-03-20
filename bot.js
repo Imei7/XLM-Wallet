@@ -2,7 +2,9 @@
  * Telegram Bot Entry Point
  * Main bot process
  */
-
+import 'dotenv/config';
+// atau jika pake require()
+// require('dotenv').config();
 import { Bot, GrammyError } from 'grammy';
 import { config, validateEnv } from './config/index.js';
 import { 
