@@ -1,9 +1,20 @@
 {
   "name": "xlm-bot",
+  "version": "1.0.0",
   "type": "module",
   "main": "bot/bot.js",
   "scripts": {
     "start": "node bot/bot.js",
     "worker": "node worker/worker.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.61.0",
+    "bullmq": "^4.0.0",
+    "ioredis": "^5.0.0",
+    "pg": "^8.0.0",
+    "stellar-sdk": "^11.0.0"
   }
 }
