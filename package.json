@@ -2,7 +2,7 @@
   "name": "xlm-bot",
   "version": "1.0.0",
   "type": "module",
-  "main": "bot/bot.js",
+  "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
     "worker": "node worker/worker.js"
@@ -11,7 +11,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.61.0",
+    "grammy": "^1.20.0",
     "bullmq": "^4.0.0",
     "ioredis": "^5.0.0",
     "pg": "^8.0.0",
