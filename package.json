@@ -1,0 +1,9 @@
+{
+  "name": "xlm-bot",
+  "type": "module",
+  "main": "bot/bot.js",
+  "scripts": {
+    "start": "node bot/bot.js",
+    "worker": "node worker/worker.js"
+  }
+}
