@@ -1,10 +1,7 @@
 /**
- * Telegram Bot Entry Point
- * Main bot process
+ * Telegram Bot Entry Point - Production Ready for Railway
  */
-import 'dotenv/config';
-// atau jika pake require()
-// require('dotenv').config();
+import 'dotenv/config'; // dotenv harus dipanggil pertama
 import { Bot, GrammyError } from 'grammy';
 import { config, validateEnv } from './config/index.js';
 import { 
@@ -18,88 +15,116 @@ import { registerUserHandlers, registerWithdrawConfirmHandler } from './bot/hand
 import { registerAdminHandlers } from './bot/handlers/admin.js';
 import { getPrismaClient } from './db/index.js';
 
-// Validate environment
+// ------------------------------
+// 1. Validate environment
+// ------------------------------
 validateEnv();
 
-// Initialize database
-getPrismaClient();
+// ------------------------------
+// 2. Initialize database
+// ------------------------------
+const prisma = await getPrismaClient();
 
-// Create bot
+// ------------------------------
+// 3. Create bot
+// ------------------------------
 const bot = new Bot(config.telegram.token);
 
-// Error handler
+// ------------------------------
+// 4. Error handler
+// ------------------------------
 bot.catch((err) => {
   const ctx = err.ctx;
-  console.error(`Error while handling update ${ctx.update.update_id}:`);
+  console.error(`❌ Error while handling update ${ctx?.update?.update_id ?? 'unknown'}:`);
   const e = err.error;
-  
+
   if (e instanceof GrammyError) {
     console.error('Error in request:', e.description);
   } else {
     console.error('Unknown error:', e);
   }
+
+  // Optional: send notification to admin
+  // if (config.telegram.admin_id) bot.api.sendMessage(config.telegram.admin_id, `Bot error: ${e.message}`);
 });
 
-// Apply middleware
+// ------------------------------
+// 5. Apply middleware
+// ------------------------------
 bot.use(sessionMiddleware);
 bot.use(authMiddleware);
 bot.use(rateLimitMiddleware);
+bot.use(activeUserMiddleware);
+bot.use(adminMiddleware);
 
-// Register handlers
+// ------------------------------
+// 6. Register handlers
+// ------------------------------
 registerUserHandlers(bot);
 registerWithdrawConfirmHandler(bot);
 registerAdminHandlers(bot);
 
-// Handle callback query for back buttons
+// ------------------------------
+// 7. Default callback query (back buttons)
+// ------------------------------
 bot.callbackQuery('noop', async (ctx) => {
-  await ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery().catch(console.error);
 });
 
-// Start bot with polling and auto-retry
+// ------------------------------
+// 8. Start bot with retry & exponential backoff
+// ------------------------------
 async function startBot() {
   let retries = 0;
   const maxRetries = 10;
-  const retryDelay = 5000;
+  let retryDelay = 5000; // start 5s
 
   while (retries < maxRetries) {
     try {
-      console.log('Starting bot...');
+      console.log('🚀 Starting bot...');
       await bot.start({
-        onStart: () => {
-          console.log('✅ Bot started successfully');
-          retries = 0; // Reset retries on success
-        },
+        onStart: () => console.log('✅ Bot started successfully'),
       });
-      break;
+      break; // started successfully
     } catch (error) {
       retries++;
-      console.error(`Bot start error (attempt ${retries}/${maxRetries}):`, error.message);
-      
+      console.error(`⚠️ Bot start error (attempt ${retries}/${maxRetries}):`, error.message);
       if (retries < maxRetries) {
-        console.log(`Retrying in ${retryDelay / 1000} seconds...`);
+        console.log(`⏳ Retrying in ${retryDelay / 1000} seconds...`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
+        retryDelay *= 1.5; // exponential backoff
       } else {
-        console.error('Max retries reached. Exiting.');
+        console.error('❌ Max retries reached. Exiting bot.');
         process.exit(1);
       }
     }
   }
 }
 
-// Graceful shutdown
-async function shutdown() {
-  console.log('Shutting down bot...');
+// ------------------------------
+// 9. Graceful shutdown for Railway
+// ------------------------------
+async function shutdown(signal) {
+  console.log(`🛑 Received ${signal}, shutting down bot...`);
   try {
     await bot.stop();
-    console.log('Bot stopped');
+    console.log('✅ Bot stopped gracefully');
+    await prisma.$disconnect();
+    console.log('✅ Database disconnected');
   } catch (error) {
-    console.error('Error stopping bot:', error);
+    console.error('❌ Error during shutdown:', error);
+  } finally {
+    process.exit(0);
   }
-  process.exit(0);
 }
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-// Start
-startBot();
+// ------------------------------
+// 10. Start
+// ------------------------------
+startBot().catch(err => {
+  console.error('❌ Fatal error starting bot:', err);
+  process.exit(1);
+});
